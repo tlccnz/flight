@@ -32,9 +32,18 @@ function parse(raw) {
 async function sendNtfy(notification) {
   if (!NTFY_URL) return;
 
-  const { label, callsign, event } = notification;
-  const title   = event === 'airborne' ? `✈️ ${label} is airborne` : `🛬 ${label} has landed`;
-  const message = callsign && callsign !== label ? `Callsign: ${callsign}` : ' ';
+  const { label, callsign, event, detail } = notification;
+  let title, message;
+  if (event === 'airborne') {
+    title   = `✈️ ${label} is airborne`;
+    message = callsign && callsign !== label ? `Callsign: ${callsign}` : ' ';
+  } else if (event === 'landed') {
+    title   = `🛬 ${label} has landed`;
+    message = callsign && callsign !== label ? `Callsign: ${callsign}` : ' ';
+  } else if (event === 'notable') {
+    title   = `👀 ${label} spotted`;
+    message = `${detail || ''}${callsign && callsign !== label ? ` · ${callsign}` : ''}`.trim() || ' ';
+  }
 
   try {
     await fetch(NTFY_URL, {

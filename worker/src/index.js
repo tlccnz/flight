@@ -1,3 +1,16 @@
+const NOTABLE_KEYWORDS = [
+  'air force', 'rnzaf', 'navy', 'rnzn', 'army', 'military', 'defence', 'defense',
+  'police', 'government', 'customs', 'coastguard', 'coast guard', 'border',
+];
+
+function isNotable(data) {
+  const hay = [data.RegisteredOwners, data.Type, data.Manufacturer]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return NOTABLE_KEYWORDS.some((kw) => hay.includes(kw));
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -70,46 +83,64 @@ async function handleIngest(request, env) {
 
   await env.DB.batch(posStmts);
 
-  // Check watchlist for state changes
   const notifications = [];
-  const watchedInBatch = positions.filter((p) => watchmap[p.hex]);
 
-  for (const p of watchedInBatch) {
-    const label = watchmap[p.hex] || p.hex;
-    const callsign = p.callsign || p.hex;
+  // Check watchlist and notable aircraft for state changes
+  const toCheck = positions.filter((p) => watchmap[p.hex] || !p.on_ground);
 
+  for (const p of toCheck) {
     const ac = await env.DB.prepare(
-      `SELECT prev_on_ground, last_airborne_date FROM aircraft WHERE hex = ?`
+      `SELECT prev_on_ground, last_airborne_date, is_notable, registration, operator FROM aircraft WHERE hex = ?`
     ).bind(p.hex).first();
 
     if (!ac) continue;
 
+    const inWatchlist = !!watchmap[p.hex];
+    const label = watchmap[p.hex] || ac.registration || p.hex;
+    const callsign = p.callsign || p.hex;
     const isAirborne = !p.on_ground;
     const wasAirborne = ac.prev_on_ground === 0;
     const stateStmts = [];
 
-    if (isAirborne && ac.last_airborne_date !== todayNZ) {
-      // First airborne sighting today
-      notifications.push({ hex: p.hex, label, callsign, event: 'airborne' });
+    if (inWatchlist) {
+      if (isAirborne && ac.last_airborne_date !== todayNZ) {
+        notifications.push({ hex: p.hex, label, callsign, event: 'airborne' });
+        stateStmts.push(
+          env.DB.prepare(
+            `UPDATE aircraft SET last_airborne_date = ?, prev_on_ground = 0 WHERE hex = ?`
+          ).bind(todayNZ, p.hex)
+        );
+      } else if (!isAirborne && wasAirborne) {
+        notifications.push({ hex: p.hex, label, callsign, event: 'landed' });
+        stateStmts.push(
+          env.DB.prepare(`UPDATE aircraft SET prev_on_ground = 1 WHERE hex = ?`).bind(p.hex)
+        );
+      } else {
+        stateStmts.push(
+          env.DB.prepare(`UPDATE aircraft SET prev_on_ground = ? WHERE hex = ?`)
+            .bind(p.on_ground ? 1 : 0, p.hex)
+        );
+      }
+    } else if (ac.is_notable && isAirborne && ac.last_airborne_date !== todayNZ) {
+      // Notable but not watchlisted — notify airborne once per day
+      const notableLabel = ac.registration || p.hex;
+      const detail = ac.operator ? ` (${ac.operator})` : '';
+      notifications.push({
+        hex: p.hex,
+        label: notableLabel,
+        callsign,
+        event: 'notable',
+        detail,
+      });
       stateStmts.push(
         env.DB.prepare(
           `UPDATE aircraft SET last_airborne_date = ?, prev_on_ground = 0 WHERE hex = ?`
         ).bind(todayNZ, p.hex)
       );
-    } else if (!isAirborne && wasAirborne) {
-      // Transitioned to ground
-      notifications.push({ hex: p.hex, label, callsign, event: 'landed' });
+    } else if (!inWatchlist) {
       stateStmts.push(
-        env.DB.prepare(
-          `UPDATE aircraft SET prev_on_ground = 1 WHERE hex = ?`
-        ).bind(p.hex)
-      );
-    } else {
-      // Just update state silently
-      stateStmts.push(
-        env.DB.prepare(
-          `UPDATE aircraft SET prev_on_ground = ? WHERE hex = ?`
-        ).bind(p.on_ground ? 1 : 0, p.hex)
+        env.DB.prepare(`UPDATE aircraft SET prev_on_ground = ? WHERE hex = ?`)
+          .bind(p.on_ground ? 1 : 0, p.hex)
       );
     }
 
@@ -183,15 +214,17 @@ async function enrichAircraft(hex, env) {
       operator      = ?,
       manufacturer  = ?,
       country       = ?,
+      is_notable    = ?,
       enriched      = 1
     WHERE hex = ?
   `).bind(
-    data.Registration     ?? null,
-    data.Type             ?? null,
-    data.ICAOTypeCode     ?? null,
-    data.RegisteredOwners ?? null,
-    data.Manufacturer     ?? null,
-    data.Country          ?? null,
+    data.Registration      ?? null,
+    data.Type              ?? null,
+    data.ICAOTypeCode      ?? null,
+    data.RegisteredOwners  ?? null,
+    data.Manufacturer      ?? null,
+    data.Country           ?? null,
+    isNotable(data) ? 1 : 0,
     hex,
   ).run();
 }
