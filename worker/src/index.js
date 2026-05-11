@@ -267,7 +267,7 @@ async function handleIngest(request, env) {
     } else {
       // On ground: require 2 consecutive readings, reset air streak
       const newGroundStreak = prevGround === 1 ? Math.min(groundStreak + 1, 2) : 1;
-      if (newGroundStreak === 2 && groundStreak < 2) {
+      if (newGroundStreak === 2 && groundStreak < 2 && prevGround === 0) {
         transType = 'landing';
         stateStmts.push(
           env.DB.prepare(`INSERT INTO transitions (hex, ts, type, callsign, alt_ft) VALUES (?, ?, ?, ?, ?)`)
