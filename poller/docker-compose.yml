@@ -8,3 +8,4 @@ services:
       - WORKER_URL=https://flight.mason-kevinc.workers.dev
       - API_KEY=289d176c97499df7b960672cdaf33ed411a7397ce3df560fd0c18ea0d67ed256
       - POLL_MS=30000
+      - NTFY_URL=http://10.10.20.85:PORT/flight-alerts
