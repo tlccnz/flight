@@ -264,8 +264,13 @@ async function handleIngest(request, env) {
       }
     } else {
       // On ground: require 2 consecutive readings, reset air streak
-      const newGroundStreak = prevGround === 1 ? Math.min(groundStreak + 1, 2) : 1;
-      if (newGroundStreak === 2 && groundStreak < 2 && prevGround === 0) {
+      // If first time seen on ground (null), jump straight to confirmed — no landing event
+      const newGroundStreak = prevGround === null ? 2
+        : prevGround === 1 ? Math.min(groundStreak + 1, 2)
+        : 1; // prevGround === 0: first ground reading after airborne
+      // Landing confirmed: second consecutive ground reading that started from airborne
+      // (groundStreak===1 means the previous reading was the first post-airborne ground reading)
+      if (newGroundStreak === 2 && groundStreak === 1) {
         transType = 'landing';
         stateStmts.push(
           env.DB.prepare(`INSERT INTO transitions (hex, ts, type, callsign, alt_ft) VALUES (?, ?, ?, ?, ?)`)
