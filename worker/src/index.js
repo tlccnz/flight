@@ -85,6 +85,18 @@ async function handleIngest(request, env) {
 
   const notifications = [];
 
+  // Enrich any new airborne aircraft immediately (up to 5 per batch)
+  const newAirborne = positions.filter((p) => !p.on_ground);
+  let enrichedThisBatch = 0;
+  for (const p of newAirborne) {
+    if (enrichedThisBatch >= 5) break;
+    const ac = await env.DB.prepare(`SELECT enriched FROM aircraft WHERE hex = ?`).bind(p.hex).first();
+    if (ac?.enriched === 0) {
+      await enrichAircraft(p.hex, env);
+      enrichedThisBatch++;
+    }
+  }
+
   // Check watchlist and notable aircraft for state changes
   const toCheck = positions.filter((p) => watchmap[p.hex] || !p.on_ground);
 
