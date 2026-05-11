@@ -1,0 +1,8 @@
+name              = "flight"
+main              = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[[d1_databases]]
+binding       = "DB"
+database_name = "flight"
+database_id   = "REPLACE_AFTER_RUNNING: wrangler d1 create flight"

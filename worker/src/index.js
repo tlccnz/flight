@@ -1,0 +1,63 @@
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+
+    if (request.method === 'POST' && url.pathname === '/ingest') {
+      return handleIngest(request, env);
+    }
+
+    return new Response('flight ingest API', { status: 200 });
+  },
+};
+
+async function handleIngest(request, env) {
+  if (request.headers.get('X-API-Key') !== env.API_KEY) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  let positions;
+  try {
+    positions = await request.json();
+  } catch {
+    return new Response('Invalid JSON', { status: 400 });
+  }
+
+  if (!Array.isArray(positions) || positions.length === 0) {
+    return new Response('No positions', { status: 400 });
+  }
+
+  const stmts = positions.flatMap((p) => [
+    // Upsert aircraft row — track first/last seen and running position count
+    env.DB.prepare(`
+      INSERT INTO aircraft (hex, first_seen, last_seen, total_positions)
+      VALUES (?, ?, ?, 1)
+      ON CONFLICT(hex) DO UPDATE SET
+        last_seen       = MAX(last_seen, excluded.last_seen),
+        total_positions = total_positions + 1
+    `).bind(p.hex, p.ts, p.ts),
+
+    // Insert position — silently skip exact duplicates (same hex+ts)
+    env.DB.prepare(`
+      INSERT OR IGNORE INTO positions
+        (hex, ts, callsign, lat, lon, alt_ft, speed_kts, heading, squawk, on_ground)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      p.hex,
+      p.ts,
+      p.callsign ?? null,
+      p.lat ?? null,
+      p.lon ?? null,
+      p.alt_ft ?? null,
+      p.speed_kts ?? null,
+      p.heading ?? null,
+      p.squawk ?? null,
+      p.on_ground ? 1 : 0,
+    ),
+  ]);
+
+  await env.DB.batch(stmts);
+
+  return new Response(JSON.stringify({ ok: true, count: positions.length }), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
