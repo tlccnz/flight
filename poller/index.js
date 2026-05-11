@@ -40,7 +40,7 @@ async function sendNtfy(notification) {
     await fetch(NTFY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, message, priority: 3 }),
+      body: JSON.stringify({ title, message, priority: 2 }),
       signal: AbortSignal.timeout(5000),
     });
   } catch (err) {
