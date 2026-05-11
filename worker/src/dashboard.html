@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flight</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:       #f9f9f9;
+      --card:     #ffffff;
+      --card-low: #f2f4f4;
+      --card-mid: #ebeeef;
+      --on:       #2d3435;
+      --on-v:     #5a6061;
+      --outline:  #757c7d;
+      --outline-v:#adb3b4;
+      --tertiary: #4a6273;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Manrope', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--on);
+      min-height: 100vh;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(249,249,249,0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      padding: 0 2.5rem;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .wordmark {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--on);
+    }
+
+    .period-tabs {
+      display: flex;
+      gap: 0.25rem;
+      background: var(--card-low);
+      padding: 0.25rem;
+      border-radius: 999px;
+    }
+
+    .period-tabs button {
+      border: none;
+      background: transparent;
+      padding: 0.375rem 1.125rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--on-v);
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+
+    .period-tabs button.active {
+      background: var(--card);
+      color: var(--on);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2.5rem;
+    }
+
+    .s-label {
+      font-size: 0.6875rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--outline);
+      margin-bottom: 0.75rem;
+    }
+
+    .card { background: var(--card); border-radius: 2rem; overflow: hidden; }
+
+    /* ── Hero ── */
+    .hero-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .hero-card { padding: 1.75rem 2rem; }
+
+    .hero-card .h-label {
+      font-size: 0.6875rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--outline);
+      margin-bottom: 1rem;
+    }
+
+    .hero-card .h-metric {
+      font-size: 3rem;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      color: var(--on);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hero-card .h-sub {
+      font-size: 0.75rem;
+      color: var(--outline-v);
+      margin-top: 0.5rem;
+    }
+
+    /* ── Chart ── */
+    .chart-card { padding: 1.75rem 2rem 1.5rem; margin-bottom: 2.5rem; }
+
+    /* ── Two-col ── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+    }
+
+    /* ── Bar rows ── */
+    .bar-section { padding: 1rem 0; }
+
+    .bar-row { padding: 0.5rem 2rem; transition: background 0.1s; }
+    .bar-row:hover { background: var(--card-low); }
+
+    .bar-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 0.3rem;
+    }
+
+    .bar-name {
+      font-size: 0.8125rem;
+      color: var(--on-v);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 78%;
+    }
+
+    .bar-count {
+      font-size: 0.75rem;
+      color: var(--outline-v);
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+
+    .bar-track {
+      height: 4px;
+      border-radius: 999px;
+      background: var(--card-mid);
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: var(--tertiary);
+    }
+
+    /* ── Table ── */
+    .t-head, .t-row {
+      display: grid;
+      grid-template-columns: 110px 1.2fr 1.6fr 110px 130px 70px;
+      gap: 1rem;
+      padding: 0.625rem 2rem;
+      align-items: center;
+    }
+
+    .t-head {
+      font-size: 0.6875rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--outline-v);
+    }
+
+    .t-row {
+      font-size: 0.8125rem;
+      transition: background 0.1s;
+    }
+    .t-row:hover { background: var(--card-low); }
+    .t-row .reg { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .t-row .dim { color: var(--on-v); }
+    .t-row .num { color: var(--on-v); font-variant-numeric: tabular-nums; text-align: right; }
+
+    /* ── Watchlist ── */
+    .w-head, .w-row {
+      display: grid;
+      grid-template-columns: 110px 1.2fr 1.6fr 140px 70px 90px;
+      gap: 1rem;
+      padding: 0.625rem 2rem;
+      align-items: center;
+    }
+
+    .w-head {
+      font-size: 0.6875rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--outline-v);
+    }
+
+    .w-row { font-size: 0.8125rem; transition: background 0.1s; }
+    .w-row:hover { background: var(--card-low); }
+    .w-row .reg { font-weight: 600; }
+    .w-row .dim { color: var(--on-v); }
+    .w-row .num { color: var(--on-v); font-variant-numeric: tabular-nums; text-align: right; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.625rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .b-air    { background: #e3f0fb; color: #1565c0; }
+    .b-ground { background: var(--card-low); color: var(--on-v); }
+    .b-notable{ background: #fff3e0; color: #e65100; }
+
+    /* ── Empty ── */
+    .empty {
+      padding: 3rem 2rem;
+      text-align: center;
+      color: var(--outline-v);
+      font-size: 0.875rem;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 960px) {
+      main { padding: 1.5rem; }
+      .hero-grid { grid-template-columns: repeat(2, 1fr); }
+      .two-col   { grid-template-columns: 1fr; }
+      .t-head, .t-row { grid-template-columns: 110px 1fr 1fr 130px 60px; }
+      .col-country { display: none; }
+      .w-head, .w-row { grid-template-columns: 110px 1fr 1.4fr 120px 80px; }
+      .col-op  { display: none; }
+    }
+
+    @media (max-width: 600px) {
+      header { padding: 0 1.25rem; }
+      main   { padding: 1rem; }
+      .hero-grid { gap: 0.75rem; }
+      .hero-card .h-metric { font-size: 2.25rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">Flight</div>
+  <nav class="period-tabs">
+    <button data-period="day"   class="active">Day</button>
+    <button data-period="week"  >Week</button>
+    <button data-period="month" >Month</button>
+    <button data-period="year"  >Year</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- Hero -->
+  <div class="hero-grid">
+    <div class="card hero-card">
+      <div class="h-label">Total Aircraft</div>
+      <div class="h-metric" id="h-total">—</div>
+      <div class="h-sub">all time</div>
+    </div>
+    <div class="card hero-card">
+      <div class="h-label">Aircraft</div>
+      <div class="h-metric" id="h-aircraft">—</div>
+      <div class="h-sub" id="h-sub">last 24 hours</div>
+    </div>
+    <div class="card hero-card">
+      <div class="h-label">Movements</div>
+      <div class="h-metric" id="h-positions">—</div>
+      <div class="h-sub" id="h-sub2">last 24 hours</div>
+    </div>
+    <div class="card hero-card">
+      <div class="h-label">Operators</div>
+      <div class="h-metric" id="h-operators">—</div>
+      <div class="h-sub" id="h-sub3">last 24 hours</div>
+    </div>
+  </div>
+
+  <!-- Hourly chart -->
+  <div class="s-label">Activity by Hour (NZ Time)</div>
+  <div class="card chart-card" style="margin-bottom:2.5rem">
+    <canvas id="hourly-chart" height="110"></canvas>
+  </div>
+
+  <!-- Operators + Types -->
+  <div class="two-col">
+    <div>
+      <div class="s-label">Top Operators</div>
+      <div class="card" id="ops-card"><div class="empty">Loading…</div></div>
+    </div>
+    <div>
+      <div class="s-label">Top Aircraft Types</div>
+      <div class="card" id="types-card"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- Watchlist -->
+  <div class="s-label">Watchlist</div>
+  <div class="card" id="watch-card" style="margin-bottom:2.5rem">
+    <div class="empty">Loading…</div>
+  </div>
+
+  <!-- All Aircraft -->
+  <div class="s-label">All Aircraft</div>
+  <div class="card" id="aircraft-card">
+    <div class="empty">Loading…</div>
+  </div>
+
+</main>
+
+<script>
+  let period = 'day';
+  let chart  = null;
+
+  // Period tabs
+  document.querySelectorAll('.period-tabs button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      period = btn.dataset.period;
+      document.querySelectorAll('.period-tabs button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      load();
+    });
+  });
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  function esc(s) {
+    return s == null ? '' : String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function num(n) { return n == null ? '—' : Number(n).toLocaleString(); }
+
+  function fmtDate(ts) {
+    if (!ts) return '—';
+    return new Date(ts * 1000).toLocaleDateString('en-NZ', {
+      timeZone: 'Pacific/Auckland', day: 'numeric', month: 'short', year: 'numeric'
+    });
+  }
+
+  function fmtHour(h) {
+    if (h === 0) return '12am';
+    if (h < 12)  return h + 'am';
+    if (h === 12) return '12pm';
+    return (h - 12) + 'pm';
+  }
+
+  function hexToRgba(hex, a) {
+    const r = parseInt(hex.slice(1,3),16);
+    const g = parseInt(hex.slice(3,5),16);
+    const b = parseInt(hex.slice(5,7),16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  // ── Renderers ─────────────────────────────────────────────────────────────
+
+  function renderHero(d) {
+    const sub = d.label.toLowerCase();
+    document.getElementById('h-total').textContent     = num(d.hero.total_aircraft);
+    document.getElementById('h-aircraft').textContent  = num(d.hero.period_aircraft);
+    document.getElementById('h-positions').textContent = num(d.hero.period_positions);
+    document.getElementById('h-operators').textContent = num(d.hero.period_operators);
+    ['h-sub','h-sub2','h-sub3'].forEach(id => document.getElementById(id).textContent = sub);
+  }
+
+  function renderChart(hourly) {
+    const ctx = document.getElementById('hourly-chart').getContext('2d');
+    const cs  = getComputedStyle(document.documentElement);
+    const tertiary  = cs.getPropertyValue('--tertiary').trim();
+    const outlineV  = cs.getPropertyValue('--outline-v').trim();
+
+    if (chart) chart.destroy();
+
+    chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: hourly.map(d => fmtHour(d.hour)),
+        datasets: [{
+          data: hourly.map(d => d.count),
+          backgroundColor:      hexToRgba(tertiary, 0.25),
+          hoverBackgroundColor: hexToRgba(tertiary, 0.55),
+          borderRadius: 4,
+          borderSkipped: false,
+          barThickness: 'flex',
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: items => fmtHour(items[0].dataIndex),
+              label: item  => ` ${item.raw} position${item.raw === 1 ? '' : 's'}`,
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid:   { display: false },
+            border: { display: false },
+            ticks:  { color: outlineV, font: { size: 10, family: 'Manrope' } }
+          },
+          y: { display: false }
+        }
+      }
+    });
+  }
+
+  function renderBars(containerId, rows, nameKey) {
+    const el = document.getElementById(containerId);
+    if (!rows.length) { el.innerHTML = '<div class="empty">No data for this period</div>'; return; }
+    el.innerHTML = '<div class="bar-section">' +
+      rows.map(r => `
+        <div class="bar-row">
+          <div class="bar-meta">
+            <div class="bar-name">${esc(r[nameKey])}</div>
+            <div class="bar-count">${num(r.count)}</div>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:${r.pct}%"></div></div>
+        </div>`).join('') +
+      '</div>';
+  }
+
+  function renderWatchlist(rows) {
+    const el = document.getElementById('watch-card');
+    if (!rows.length) { el.innerHTML = '<div class="empty">No aircraft on watchlist</div>'; return; }
+
+    el.innerHTML =
+      `<div class="w-head">
+        <div>Aircraft</div><div>Type</div>
+        <div class="col-op">Operator</div>
+        <div>Last Seen</div>
+        <div class="num">Sightings</div>
+        <div>Status</div>
+      </div>` +
+      rows.map(w => {
+        const status = w.last_seen == null ? '<span class="badge b-ground">Unknown</span>'
+          : w.on_ground === 0 ? '<span class="badge b-air">Airborne</span>'
+          :                     '<span class="badge b-ground">Ground</span>';
+        return `<div class="w-row">
+          <div class="reg">${esc(w.label)}</div>
+          <div class="dim">${esc(w.aircraft_type) || '—'}</div>
+          <div class="dim col-op">${esc(w.operator) || '—'}</div>
+          <div class="dim">${fmtDate(w.last_seen)}</div>
+          <div class="num">${num(w.total_positions)}</div>
+          <div>${status}</div>
+        </div>`;
+      }).join('');
+  }
+
+  function renderAircraft(rows) {
+    const el = document.getElementById('aircraft-card');
+    if (!rows.length) { el.innerHTML = '<div class="empty">No aircraft yet</div>'; return; }
+
+    el.innerHTML =
+      `<div class="t-head">
+        <div>Reg</div><div>Type</div><div>Operator</div>
+        <div class="col-country">Country</div>
+        <div>Last Seen</div>
+        <div class="num">Sightings</div>
+      </div>` +
+      rows.map(a => `
+        <div class="t-row">
+          <div class="reg">${esc(a.registration) || esc(a.hex.toUpperCase())}${a.is_notable ? ' <span class="badge b-notable">Notable</span>' : ''}</div>
+          <div class="dim">${esc(a.aircraft_type) || '—'}</div>
+          <div class="dim">${esc(a.operator) || '—'}</div>
+          <div class="dim col-country">${esc(a.country) || '—'}</div>
+          <div class="dim">${fmtDate(a.last_seen)}</div>
+          <div class="num">${num(a.total_positions)}</div>
+        </div>`).join('');
+  }
+
+  // ── Load ──────────────────────────────────────────────────────────────────
+
+  async function load() {
+    try {
+      const res = await fetch(`/stats?period=${period}`);
+      const d   = await res.json();
+
+      renderHero(d);
+      renderChart(d.hourly);
+      renderBars('ops-card',   d.top_operators, 'operator');
+      renderBars('types-card', d.top_types,     'aircraft_type');
+      renderWatchlist(d.watchlist);
+      renderAircraft(d.aircraft);
+    } catch (err) {
+      console.error('load error', err);
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>
