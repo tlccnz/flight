@@ -80,7 +80,7 @@ async function handleIngest(request, env) {
 
     const ac = await env.DB.prepare(
       `SELECT prev_on_ground, last_airborne_date FROM aircraft WHERE hex = ?`
-    ).first(p.hex);
+    ).bind(p.hex).first();
 
     if (!ac) continue;
 
