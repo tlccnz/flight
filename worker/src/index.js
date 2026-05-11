@@ -230,7 +230,7 @@ async function handleIngest(request, env) {
     } else {
       // On ground: require 2 consecutive readings before confirming a landing
       const newStreak = prevGround === 1 ? Math.min(groundStreak + 1, 2) : 1;
-      if (newStreak === 2) transType = 'landing';
+      if (newStreak === 2 && groundStreak < 2) transType = 'landing';
 
       stateStmts.push(
         env.DB.prepare(`UPDATE aircraft SET prev_on_ground = 1, ground_streak = ? WHERE hex = ?`).bind(newStreak, p.hex)
