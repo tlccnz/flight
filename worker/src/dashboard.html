@@ -584,18 +584,21 @@
     document.getElementById('chart-label').textContent = chartLabels[d.period] || 'Activity';
   }
 
-  function renderBars(containerId, rows, nameKey) {
+  function renderBars(containerId, rows, nameKey, subKey) {
     const el = document.getElementById(containerId);
     if (!rows.length) { el.innerHTML = '<div class="empty">No data for this period</div>'; return; }
     el.innerHTML = '<div class="bar-section">' +
-      rows.map(r => `
+      rows.map(r => {
+        const name = subKey && r[subKey] ? `${esc(r[subKey])} ${esc(r[nameKey])}` : esc(r[nameKey]);
+        return `
         <div class="bar-row">
           <div class="bar-meta">
-            <div class="bar-name">${esc(r[nameKey])}</div>
+            <div class="bar-name">${name}</div>
             <div class="bar-count">${num(r.count)}</div>
           </div>
           <div class="bar-track"><div class="bar-fill" style="width:${r.pct}%"></div></div>
-        </div>`).join('') +
+        </div>`;
+      }).join('') +
       '</div>';
   }
 
@@ -684,7 +687,7 @@
       renderHero(d);
       renderChart(d);
       renderBars('ops-card',   d.top_operators, 'operator');
-      renderBars('types-card', d.top_types,     'aircraft_type');
+      renderBars('types-card', d.top_types,     'aircraft_type', 'manufacturer');
       renderMostSeen(d.most_seen);
       renderWatchlist(d.watchlist);
       renderAircraft(d.aircraft);

@@ -80,7 +80,7 @@ async function handleStats(request, env) {
     `).bind(since).all(),
 
     env.DB.prepare(`
-      SELECT a.aircraft_type, COUNT(DISTINCT p.hex) as count
+      SELECT a.aircraft_type, a.manufacturer, COUNT(DISTINCT p.hex) as count
       FROM positions p JOIN aircraft a ON a.hex = p.hex
       WHERE p.ts >= ? AND a.aircraft_type IS NOT NULL
       GROUP BY a.aircraft_type ORDER BY count DESC LIMIT 8
