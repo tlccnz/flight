@@ -209,9 +209,7 @@ async function handleIngest(request, env) {
     const ac = acMap[p.hex];
     if (!ac) continue;
 
-    // Altitude sanity check: on_ground=0 at <50ft is a bad transponder reading
-    const effectiveGround = p.on_ground || (p.alt_ft != null && p.alt_ft < 50);
-    const isAirborne   = !effectiveGround;
+    const isAirborne   = !p.on_ground;
     const prevGround   = ac.prev_on_ground;  // null | 0 | 1
     const groundStreak = ac.ground_streak ?? 0;
     const airStreak    = ac.air_streak ?? 0;
