@@ -612,7 +612,7 @@
         <div>Type</div>
         <div class="col-ms-mfr">Manufacturer</div>
         <div>Operator</div>
-        <div class="num">Sightings</div>
+        <div class="num">Visits</div>
       </div>` +
       rows.map(r => `
         <div class="ms-row">
@@ -633,7 +633,7 @@
         <div>Aircraft</div><div>Type</div>
         <div class="col-op">Operator</div>
         <div>Last Seen</div>
-        <div class="num">Sightings</div>
+        <div class="num">Visits</div>
         <div>Status</div>
       </div>` +
       rows.map(w => {
@@ -645,7 +645,7 @@
           <div class="dim">${esc(w.aircraft_type) || '—'}</div>
           <div class="dim col-op">${esc(w.operator) || '—'}</div>
           <div class="dim">${fmtDate(w.last_seen)}</div>
-          <div class="num">${num(w.total_positions)}</div>
+          <div class="num">${num(w.sighting_count)}</div>
           <div>${status}</div>
         </div>`;
       }).join('');
@@ -663,7 +663,7 @@
         <div>Operator</div>
         <div class="col-country">Country</div>
         <div>Last Seen</div>
-        <div class="num">Sightings</div>
+        <div class="num">Visits</div>
       </div>` +
       rows.map(a => `
         <div class="t-row">
@@ -673,7 +673,7 @@
           <div class="dim">${esc(a.operator) || '—'}</div>
           <div class="dim col-country">${esc(a.country) || '—'}</div>
           <div class="dim">${fmtDate(a.last_seen)}</div>
-          <div class="num">${num(a.total_positions)}</div>
+          <div class="num">${num(a.sighting_count)}</div>
         </div>`).join('');
   }
 

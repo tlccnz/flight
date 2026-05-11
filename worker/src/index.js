@@ -87,21 +87,21 @@ async function handleStats(request, env) {
     `).bind(since).all(),
 
     env.DB.prepare(`
-      SELECT a.hex, a.registration, a.aircraft_type, a.manufacturer, a.operator, COUNT(p.id) as count
-      FROM positions p JOIN aircraft a ON a.hex = p.hex
-      WHERE p.ts >= ?
-      GROUP BY a.hex ORDER BY count DESC LIMIT 5
-    `).bind(since).all(),
+      SELECT hex, registration, aircraft_type, manufacturer, operator, sighting_count as count
+      FROM aircraft
+      WHERE sighting_count > 0
+      ORDER BY sighting_count DESC LIMIT 5
+    `).all(),
 
     env.DB.prepare(`
       SELECT hex, registration, aircraft_type, manufacturer, operator, country,
-             first_seen, last_seen, total_positions, is_notable
+             first_seen, last_seen, sighting_count, is_notable
       FROM aircraft ORDER BY last_seen DESC LIMIT 500
     `).all(),
 
     env.DB.prepare(`
       SELECT w.hex, w.label, a.registration, a.aircraft_type, a.operator,
-             a.last_seen, a.total_positions,
+             a.last_seen, a.sighting_count,
              (SELECT on_ground FROM positions WHERE hex = w.hex ORDER BY ts DESC LIMIT 1) as on_ground,
              (SELECT callsign FROM positions WHERE hex = w.hex AND callsign IS NOT NULL ORDER BY ts DESC LIMIT 1) as callsign
       FROM watchlist w LEFT JOIN aircraft a ON a.hex = w.hex
@@ -228,6 +228,11 @@ async function handleIngest(request, env) {
         env.DB.prepare(`INSERT INTO transitions (hex, ts, type, callsign, alt_ft) VALUES (?, ?, ?, ?, ?)`)
           .bind(p.hex, p.ts, transType, p.callsign ?? null, p.alt_ft ?? null)
       );
+      if (transType === 'landing' || transType === 'overhead') {
+        stateStmts.push(
+          env.DB.prepare(`UPDATE aircraft SET sighting_count = sighting_count + 1 WHERE hex = ?`).bind(p.hex)
+        );
+      }
     }
 
     // Notifications + prev_on_ground update
