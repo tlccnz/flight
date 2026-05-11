@@ -8,7 +8,13 @@ export default {
 
     return new Response('flight ingest API', { status: 200 });
   },
+
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runEnrichment(env));
+  },
 };
+
+// ── Ingest ────────────────────────────────────────────────────────────────────
 
 async function handleIngest(request, env) {
   if (request.headers.get('X-API-Key') !== env.API_KEY) {
@@ -29,8 +35,8 @@ async function handleIngest(request, env) {
   const stmts = positions.flatMap((p) => [
     // Upsert aircraft row — track first/last seen and running position count
     env.DB.prepare(`
-      INSERT INTO aircraft (hex, first_seen, last_seen, total_positions)
-      VALUES (?, ?, ?, 1)
+      INSERT INTO aircraft (hex, first_seen, last_seen, total_positions, enriched)
+      VALUES (?, ?, ?, 1, 0)
       ON CONFLICT(hex) DO UPDATE SET
         last_seen       = MAX(last_seen, excluded.last_seen),
         total_positions = total_positions + 1
@@ -60,4 +66,54 @@ async function handleIngest(request, env) {
   return new Response(JSON.stringify({ ok: true, count: positions.length }), {
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+// ── Enrichment ────────────────────────────────────────────────────────────────
+
+async function runEnrichment(env) {
+  const rows = await env.DB.prepare(`
+    SELECT hex FROM aircraft WHERE enriched = 0 LIMIT 10
+  `).all();
+
+  if (!rows.results.length) return;
+
+  for (const { hex } of rows.results) {
+    await enrichAircraft(hex, env);
+  }
+}
+
+async function enrichAircraft(hex, env) {
+  let data;
+  try {
+    const res = await fetch(`https://hexdb.io/api/v1/aircraft/${hex}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.status === 404) {
+      await env.DB.prepare(`UPDATE aircraft SET enriched = -1 WHERE hex = ?`).bind(hex).run();
+      return;
+    }
+    data = await res.json();
+  } catch {
+    return; // transient error — will retry next cron run
+  }
+
+  await env.DB.prepare(`
+    UPDATE aircraft SET
+      registration  = ?,
+      aircraft_type = ?,
+      icao_type     = ?,
+      operator      = ?,
+      manufacturer  = ?,
+      country       = ?,
+      enriched      = 1
+    WHERE hex = ?
+  `).bind(
+    data.Registration    ?? null,
+    data.Type            ?? null,
+    data.ICAOTypeCode    ?? null,
+    data.RegisteredOwners ?? null,
+    data.Manufacturer    ?? null,
+    data.Country         ?? null,
+    hex,
+  ).run();
 }
