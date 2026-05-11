@@ -1,0 +1,17 @@
+services:
+  adsb-station:
+    build: ./server
+    container_name: adsb-station
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    volumes:
+      - adsb-data:/data
+      - ./dashboard:/app/dashboard
+    environment:
+      - ADSB_URL=http://10.10.30.227:8754/flights.json
+      - DB_PATH=/data/adsb.db
+      - PORT=3000
+
+volumes:
+  adsb-data:
