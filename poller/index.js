@@ -38,7 +38,7 @@ async function poll() {
     return;
   }
 
-  const raw = Array.isArray(data) ? data : (data?.aircraft ?? []);
+  const raw = Array.isArray(data) ? data : Object.values(data);
   const positions = raw
     .map(parse)
     .filter((p) => p.hex && p.lat != null && p.lon != null);
