@@ -5,4 +5,4 @@ compatibility_date = "2025-01-01"
 [[d1_databases]]
 binding       = "DB"
 database_name = "flight"
-database_id   = "REPLACE_AFTER_RUNNING: wrangler d1 create flight"
+database_id   = "61f77d76-83cf-41f1-ae38-ef7a600cea7e"
