@@ -197,7 +197,7 @@ async function handleIngest(request, env) {
   const hexList     = [...new Set(positions.map(p => p.hex))];
   const placeholders = hexList.map(() => '?').join(',');
   const { results: acRows } = await env.DB.prepare(
-    `SELECT hex, prev_on_ground, last_airborne_date, is_notable, registration, operator
+    `SELECT hex, prev_on_ground, ground_streak, last_airborne_date, is_notable, registration, operator
      FROM aircraft WHERE hex IN (${placeholders})`
   ).bind(...hexList).all();
   const acMap = Object.fromEntries(acRows.map(r => [r.hex, r]));
@@ -209,19 +209,33 @@ async function handleIngest(request, env) {
     const ac = acMap[p.hex];
     if (!ac) continue;
 
-    const isAirborne  = !p.on_ground;
-    const wasAirborne = ac.prev_on_ground === 0;
-    const wasGround   = ac.prev_on_ground === 1;
-    const firstSeen   = ac.prev_on_ground === null;
-    const inWatchlist = !!watchmap[p.hex];
-    const label       = watchmap[p.hex] || ac.registration || p.hex;
-    const callsign    = p.callsign || p.hex;
+    const isAirborne   = !p.on_ground;
+    const prevGround   = ac.prev_on_ground;  // null | 0 | 1
+    const groundStreak = ac.ground_streak ?? 0;
+    const inWatchlist  = !!watchmap[p.hex];
+    const label        = watchmap[p.hex] || ac.registration || p.hex;
+    const callsign     = p.callsign || p.hex;
 
-    // Detect and record state transition
     let transType = null;
-    if (isAirborne && wasGround)        transType = 'takeoff';
-    else if (!isAirborne && wasAirborne) transType = 'landing';
-    else if (isAirborne && firstSeen)    transType = 'overhead';
+
+    if (isAirborne) {
+      // First ever sighting airborne → overhead
+      if (prevGround === null)    transType = 'overhead';
+      // Was on ground (confirmed or tentative) → takeoff
+      else if (groundStreak >= 1) transType = 'takeoff';
+
+      stateStmts.push(
+        env.DB.prepare(`UPDATE aircraft SET prev_on_ground = 0, ground_streak = 0 WHERE hex = ?`).bind(p.hex)
+      );
+    } else {
+      // On ground: require 2 consecutive readings before confirming a landing
+      const newStreak = prevGround === 1 ? Math.min(groundStreak + 1, 2) : 1;
+      if (newStreak === 2) transType = 'landing';
+
+      stateStmts.push(
+        env.DB.prepare(`UPDATE aircraft SET prev_on_ground = 1, ground_streak = ? WHERE hex = ?`).bind(newStreak, p.hex)
+      );
+    }
 
     if (transType) {
       stateStmts.push(
@@ -235,32 +249,21 @@ async function handleIngest(request, env) {
       }
     }
 
-    // Notifications + prev_on_ground update
+    // Notifications
     if (inWatchlist) {
       if (isAirborne && ac.last_airborne_date !== todayNZ) {
         notifications.push({ hex: p.hex, label, callsign, event: 'airborne' });
         stateStmts.push(
-          env.DB.prepare(`UPDATE aircraft SET last_airborne_date = ?, prev_on_ground = 0 WHERE hex = ?`).bind(todayNZ, p.hex)
+          env.DB.prepare(`UPDATE aircraft SET last_airborne_date = ? WHERE hex = ?`).bind(todayNZ, p.hex)
         );
-      } else if (!isAirborne && wasAirborne) {
+      } else if (transType === 'landing') {
         notifications.push({ hex: p.hex, label, callsign, event: 'landed' });
-        stateStmts.push(
-          env.DB.prepare(`UPDATE aircraft SET prev_on_ground = 1 WHERE hex = ?`).bind(p.hex)
-        );
-      } else {
-        stateStmts.push(
-          env.DB.prepare(`UPDATE aircraft SET prev_on_ground = ? WHERE hex = ?`).bind(p.on_ground ? 1 : 0, p.hex)
-        );
       }
     } else if (ac.is_notable && isAirborne && ac.last_airborne_date !== todayNZ) {
       const detail = ac.operator ? ` (${ac.operator})` : '';
       notifications.push({ hex: p.hex, label: ac.registration || p.hex, callsign, event: 'notable', detail });
       stateStmts.push(
-        env.DB.prepare(`UPDATE aircraft SET last_airborne_date = ?, prev_on_ground = 0 WHERE hex = ?`).bind(todayNZ, p.hex)
-      );
-    } else {
-      stateStmts.push(
-        env.DB.prepare(`UPDATE aircraft SET prev_on_ground = ? WHERE hex = ?`).bind(p.on_ground ? 1 : 0, p.hex)
+        env.DB.prepare(`UPDATE aircraft SET last_airborne_date = ? WHERE hex = ?`).bind(todayNZ, p.hex)
       );
     }
   }
