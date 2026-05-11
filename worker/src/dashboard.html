@@ -609,16 +609,16 @@
     el.innerHTML =
       `<div class="ms-head">
         <div>Aircraft</div>
-        <div>Type</div>
         <div class="col-ms-mfr">Manufacturer</div>
+        <div>Type</div>
         <div>Operator</div>
         <div class="num">Visits</div>
       </div>` +
       rows.map(r => `
         <div class="ms-row">
           <div class="reg">${esc(r.registration) || esc(r.hex.toUpperCase())}</div>
-          <div class="dim">${esc(r.aircraft_type) || '—'}</div>
           <div class="dim col-ms-mfr">${esc(r.manufacturer) || '—'}</div>
+          <div class="dim">${esc(r.aircraft_type) || '—'}</div>
           <div class="dim">${esc(r.operator) || '—'}</div>
           <div class="num">${num(r.count)}</div>
         </div>`).join('');
@@ -658,8 +658,8 @@
     el.innerHTML =
       `<div class="t-head">
         <div>Reg</div>
-        <div>Type</div>
         <div class="col-mfr">Manufacturer</div>
+        <div>Type</div>
         <div>Operator</div>
         <div class="col-country">Country</div>
         <div>Last Seen</div>
@@ -668,8 +668,8 @@
       rows.map(a => `
         <div class="t-row">
           <div class="reg">${esc(a.registration) || esc(a.hex.toUpperCase())}${a.is_notable ? ' <span class="badge b-notable">Notable</span>' : ''}</div>
-          <div class="dim">${esc(a.aircraft_type) || '—'}</div>
           <div class="dim col-mfr">${esc(a.manufacturer) || '—'}</div>
+          <div class="dim">${esc(a.aircraft_type) || '—'}</div>
           <div class="dim">${esc(a.operator) || '—'}</div>
           <div class="dim col-country">${esc(a.country) || '—'}</div>
           <div class="dim">${fmtDate(a.last_seen)}</div>
