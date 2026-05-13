@@ -52,8 +52,8 @@ async function handleStats(request, env) {
   const label   = { day: 'Last 24 Hours', week: 'Last 7 Days', month: 'Last 30 Days', year: 'Last 365 Days' }[period] || 'Last 24 Hours';
 
   // Chart bucketing: bucket index = floor((ts - since) / bucketSize)
-  const bucketSize  = { day: 300, week: 86400, month: 86400, year: 30 * 86400 }[period] || 300;
-  const numBuckets  = { day: 288, week: 7,      month: 30,   year: 12          }[period] || 288;
+  const bucketSize  = { day: 3600, week: 86400, month: 86400, year: 30 * 86400 }[period] || 3600;
+  const numBuckets  = { day: 24,   week: 7,      month: 30,   year: 12          }[period] || 24;
 
   const [heroRow, chartRows, opRows, typeRows, mostSeenRows, aircraftRows, watchRows] = await Promise.all([
     env.DB.prepare(`

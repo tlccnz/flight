@@ -456,11 +456,8 @@
   // Compute x-axis label for a given bucket index
   function bucketLabel(i, period, since, bucketSize) {
     if (period === 'day') {
-      // 5-min buckets — label every 12th (hourly)
-      if (i % 12 !== 0) return '';
       const ts = since + i * bucketSize;
-      const d  = new Date(ts * 1000);
-      const h  = d.toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', hour: 'numeric', hour12: true });
+      const h  = new Date(ts * 1000).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', hour: 'numeric', hour12: true });
       return h.replace(':00', '').replace(' ', '').toLowerCase();
     }
     if (period === 'week') {
@@ -580,7 +577,7 @@
     });
 
     // Update chart section label
-    const chartLabels = { day: 'Transitions by 5-Min Interval (NZ Time)', week: 'Transitions by Day', month: 'Transitions by Day', year: 'Transitions by Month' };
+    const chartLabels = { day: 'Transitions by Hour (NZ Time)', week: 'Transitions by Day', month: 'Transitions by Day', year: 'Transitions by Month' };
     document.getElementById('chart-label').textContent = chartLabels[d.period] || 'Activity';
   }
 
