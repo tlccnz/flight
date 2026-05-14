@@ -51,11 +51,9 @@ async function handleStats(request, env) {
   const since   = now - (seconds[period] || 86400);
   const label   = { day: 'Last 24 Hours', week: 'Last 7 Days', month: 'Last 30 Days', year: 'Last 365 Days' }[period] || 'Last 24 Hours';
 
-  // Chart bucketing: bucket index = floor((ts - since) / bucketSize)
-  const bucketSize  = { day: 3600, week: 86400, month: 86400, year: 30 * 86400 }[period] || 3600;
-  const numBuckets  = { day: 24,   week: 7,      month: 30,   year: 12          }[period] || 24;
+  const calSince = now - 90 * 86400;
 
-  const [heroRow, chartRows, opRows, typeRows, mostSeenRows, aircraftRows, watchRows] = await Promise.all([
+  const [heroRow, opRows, typeRows, mostSeenRows, aircraftRows, watchRows, dhRows, calRows] = await Promise.all([
     env.DB.prepare(`
       SELECT
         (SELECT COUNT(*) FROM aircraft) as total_aircraft,
@@ -63,14 +61,6 @@ async function handleStats(request, env) {
         (SELECT COUNT(*) FROM transitions WHERE ts >= ? AND type = 'takeoff') as period_takeoffs,
         (SELECT COUNT(*) FROM transitions WHERE ts >= ? AND type = 'landing') as period_landings
     `).bind(since, since, since).first(),
-
-    env.DB.prepare(`
-      SELECT type, CAST((ts - ?) / ? AS INTEGER) as bucket, COUNT(*) as cnt
-      FROM transitions
-      WHERE ts >= ?
-      GROUP BY type, bucket
-      ORDER BY bucket
-    `).bind(since, bucketSize, since).all(),
 
     env.DB.prepare(`
       SELECT a.operator, COUNT(DISTINCT p.hex) as count
@@ -107,16 +97,33 @@ async function handleStats(request, env) {
       FROM watchlist w LEFT JOIN aircraft a ON a.hex = w.hex
       ORDER BY COALESCE(a.last_seen, 0) DESC
     `).all(),
-  ]);
 
-  // Build pivoted chart: array of {bucket, takeoffs, landings, overhead}
-  const chart = Array.from({ length: numBuckets }, (_, i) => ({ bucket: i, takeoffs: 0, landings: 0, overhead: 0 }));
-  for (const row of (chartRows.results || [])) {
-    if (row.bucket >= 0 && row.bucket < numBuckets) {
-      const key = row.type === 'takeoff' ? 'takeoffs' : row.type === 'landing' ? 'landings' : 'overhead';
-      chart[row.bucket][key] += row.cnt;
-    }
-  }
+    env.DB.prepare(`
+      SELECT
+        CAST(strftime('%w', datetime(ts + 43200, 'unixepoch')) AS INTEGER) as dow,
+        CAST(((ts + 43200) % 86400) / 3600 AS INTEGER) as hour_nz,
+        SUM(CASE WHEN type = 'takeoff'  THEN 1 ELSE 0 END) as takeoffs,
+        SUM(CASE WHEN type = 'landing'  THEN 1 ELSE 0 END) as landings,
+        SUM(CASE WHEN type = 'overhead' THEN 1 ELSE 0 END) as overhead,
+        COUNT(*) as total
+      FROM transitions
+      WHERE ts >= ?
+      GROUP BY dow, hour_nz
+    `).bind(since).all(),
+
+    env.DB.prepare(`
+      SELECT
+        date(ts + 43200, 'unixepoch') as date_nz,
+        SUM(CASE WHEN type = 'takeoff'  THEN 1 ELSE 0 END) as takeoffs,
+        SUM(CASE WHEN type = 'landing'  THEN 1 ELSE 0 END) as landings,
+        SUM(CASE WHEN type = 'overhead' THEN 1 ELSE 0 END) as overhead,
+        COUNT(*) as total
+      FROM transitions
+      WHERE ts >= ?
+      GROUP BY date_nz
+      ORDER BY date_nz
+    `).bind(calSince).all(),
+  ]);
 
   const maxOp      = Math.max(...(opRows.results      || []).map(r => r.count), 1);
   const maxType    = Math.max(...(typeRows.results     || []).map(r => r.count), 1);
@@ -125,15 +132,14 @@ async function handleStats(request, env) {
   return new Response(JSON.stringify({
     period,
     label,
-    since,
-    bucketSize,
     hero:          heroRow,
-    chart,
     top_operators: (opRows.results      || []).map(r => ({ ...r, pct: Math.round(r.count / maxOp   * 100) })),
     top_types:     (typeRows.results    || []).map(r => ({ ...r, pct: Math.round(r.count / maxType * 100) })),
     most_seen:     (mostSeenRows.results|| []).map(r => ({ ...r, pct: Math.round(r.count / maxSeen * 100) })),
     aircraft:      aircraftRows.results || [],
     watchlist:     watchRows.results    || [],
+    dh_heatmap:    dhRows.results       || [],
+    cal_heatmap:   calRows.results      || [],
   }), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });

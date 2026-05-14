@@ -6,7 +6,6 @@
   <title>Flight</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <style>
     :root {
       --bg:       #f9f9f9;
@@ -18,9 +17,6 @@
       --outline:  #757c7d;
       --outline-v:#adb3b4;
       --tertiary: #4a6273;
-      --takeoff:  #2e7d32;
-      --landing:  #1565c0;
-      --overhead: #6a1b9a;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -132,29 +128,87 @@
       margin-top: 0.5rem;
     }
 
-    /* ── Chart ── */
-    .chart-card { padding: 1.75rem 2rem 1.5rem; margin-bottom: 2.5rem; }
-
-    .chart-legend {
-      display: flex;
-      gap: 1.25rem;
-      margin-bottom: 1rem;
+    /* ── Heatmaps ── */
+    .hm-row {
+      display: grid;
+      grid-template-columns: 3fr 2fr;
+      gap: 1rem;
+      margin-bottom: 2.5rem;
     }
 
-    .chart-legend-item {
+    .hm-card { padding: 1.25rem 1.5rem; overflow: hidden; }
+
+    /* Day×Hour grid */
+    .dh-grid {
+      display: grid;
+      grid-template-columns: 28px repeat(24, 1fr);
+      gap: 2px;
+    }
+    .dh-cell {
+      height: 20px;
+      border-radius: 2px;
+      cursor: default;
+    }
+    .dh-hlabel {
+      font-size: 0.5rem;
+      color: var(--outline-v);
+      text-align: center;
+      padding-bottom: 3px;
+      line-height: 1;
+    }
+    .dh-dlabel {
+      font-size: 0.5625rem;
+      color: var(--outline-v);
       display: flex;
       align-items: center;
-      gap: 0.375rem;
-      font-size: 0.75rem;
-      color: var(--on-v);
+      height: 20px;
     }
 
-    .chart-legend-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
+    /* Calendar grid */
+    .cal-wrap {
+      display: flex;
+      align-items: flex-start;
+      gap: 4px;
+    }
+    .cal-dow {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
       flex-shrink: 0;
     }
+    .cal-dlabel {
+      height: 14px;
+      font-size: 0.5rem;
+      color: var(--outline-v);
+      line-height: 14px;
+      text-align: right;
+    }
+    .cal-grid {
+      display: grid;
+      grid-template-rows: repeat(7, 14px);
+      grid-auto-flow: column;
+      grid-auto-columns: 14px;
+      gap: 2px;
+      overflow: hidden;
+    }
+    .cal-cell { border-radius: 2px; cursor: default; }
+
+    /* Tooltip */
+    .hm-tip {
+      position: fixed;
+      background: #2d3435;
+      color: #fff;
+      padding: 0.4rem 0.65rem;
+      border-radius: 0.5rem;
+      font-size: 0.6875rem;
+      line-height: 1.55;
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 100;
+      opacity: 0;
+      transition: opacity 0.1s;
+    }
+    .hm-tip.visible { opacity: 1; }
 
     /* ── Two-col ── */
     .two-col {
@@ -364,25 +418,19 @@
     </div>
   </div>
 
-  <!-- Transitions chart -->
-  <div class="s-label" id="chart-label">Activity (NZ Time)</div>
-  <div class="card chart-card" style="margin-bottom:2.5rem">
-    <div class="chart-legend">
-      <div class="chart-legend-item">
-        <div class="chart-legend-dot" style="background:#2e7d32"></div>
-        Takeoffs
-      </div>
-      <div class="chart-legend-item">
-        <div class="chart-legend-dot" style="background:#1565c0"></div>
-        Landings
-      </div>
-      <div class="chart-legend-item">
-        <div class="chart-legend-dot" style="background:#6a1b9a"></div>
-        Overhead
-      </div>
+  <!-- Heatmaps -->
+  <div class="hm-row">
+    <div>
+      <div class="s-label" id="dh-label">Activity by Hour</div>
+      <div class="card hm-card" id="dh-card"></div>
     </div>
-    <canvas id="main-chart" height="110"></canvas>
+    <div>
+      <div class="s-label">Activity Calendar <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--outline-v);font-size:0.625rem">last 90 days</span></div>
+      <div class="card hm-card" id="cal-card"></div>
+    </div>
   </div>
+
+  <div id="hm-tip" class="hm-tip"></div>
 
   <!-- Operators + Types -->
   <div class="two-col">
@@ -418,7 +466,6 @@
 
 <script>
   let period = 'day';
-  let chart  = null;
 
   // Period tabs
   document.querySelectorAll('.period-tabs button').forEach(btn => {
@@ -446,35 +493,33 @@
     });
   }
 
-  function hexToRgba(hex, a) {
-    const r = parseInt(hex.slice(1,3),16);
-    const g = parseInt(hex.slice(3,5),16);
-    const b = parseInt(hex.slice(5,7),16);
-    return `rgba(${r},${g},${b},${a})`;
+  function hmColor(total, max) {
+    if (total === 0) return 'var(--card-mid)';
+    const i = Math.max(0.12, total / max);
+    return `rgba(74,98,115,${i.toFixed(2)})`;
   }
 
-  // Compute x-axis label for a given bucket index
-  function bucketLabel(i, period, since, bucketSize) {
-    if (period === 'day') {
-      const ts = since + i * bucketSize;
-      const h  = new Date(ts * 1000).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', hour: 'numeric', hour12: true });
-      return h.replace(':00', '').replace(' ', '').toLowerCase();
-    }
-    if (period === 'week') {
-      const ts = since + i * bucketSize;
-      return new Date(ts * 1000).toLocaleDateString('en-NZ', { timeZone: 'Pacific/Auckland', weekday: 'short' });
-    }
-    if (period === 'month') {
-      // label every 5th day
-      if (i % 5 !== 0) return '';
-      const ts = since + i * bucketSize;
-      return new Date(ts * 1000).toLocaleDateString('en-NZ', { timeZone: 'Pacific/Auckland', day: 'numeric', month: 'short' });
-    }
-    if (period === 'year') {
-      const ts = since + i * bucketSize;
-      return new Date(ts * 1000).toLocaleDateString('en-NZ', { timeZone: 'Pacific/Auckland', month: 'short' });
-    }
-    return '';
+  // ── Tooltip ───────────────────────────────────────────────────────────────
+
+  const tip = document.getElementById('hm-tip');
+
+  function moveTip(e) {
+    const x = e.clientX + 14;
+    const y = e.clientY - 8;
+    tip.style.left = Math.min(x, window.innerWidth - tip.offsetWidth - 10) + 'px';
+    tip.style.top  = y + 'px';
+  }
+
+  function attachTips(container) {
+    container.querySelectorAll('[data-tip]').forEach(el => {
+      el.addEventListener('mouseenter', e => {
+        tip.innerHTML = el.dataset.tip;
+        tip.classList.add('visible');
+        moveTip(e);
+      });
+      el.addEventListener('mousemove', moveTip);
+      el.addEventListener('mouseleave', () => tip.classList.remove('visible'));
+    });
   }
 
   // ── Renderers ─────────────────────────────────────────────────────────────
@@ -490,95 +535,101 @@
     });
   }
 
-  function renderChart(d) {
-    const ctx = document.getElementById('main-chart').getContext('2d');
-    if (chart) chart.destroy();
+  function renderDHHeatmap(rows, label) {
+    const dhLabel = { day: 'Last 24 Hours', week: 'Last 7 Days', month: 'Last 30 Days', year: 'Last Year' }[period] || '';
+    document.getElementById('dh-label').textContent = `Activity by Hour — ${dhLabel}`;
 
-    const labels   = d.chart.map((c, i) => bucketLabel(i, d.period, d.since, d.bucketSize));
-    const isDay    = d.period === 'day';
-    const chartType = isDay ? 'line' : 'bar';
+    // Build lookup: dow → hour_nz → row
+    const map = {};
+    let maxTotal = 1;
+    for (const r of rows) {
+      if (!map[r.dow]) map[r.dow] = {};
+      map[r.dow][r.hour_nz] = r;
+      if (r.total > maxTotal) maxTotal = r.total;
+    }
 
-    const takeoffColor  = '#2e7d32';
-    const landingColor  = '#1565c0';
-    const overheadColor = '#6a1b9a';
+    // Mon(dow=1) … Sat(dow=6), Sun(dow=0)
+    const days = [
+      { label: 'Mon', dow: 1 }, { label: 'Tue', dow: 2 }, { label: 'Wed', dow: 3 },
+      { label: 'Thu', dow: 4 }, { label: 'Fri', dow: 5 }, { label: 'Sat', dow: 6 },
+      { label: 'Sun', dow: 0 },
+    ];
 
-    const baseDataset = isDay
-      ? { fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5 }
-      : { borderRadius: 3, borderSkipped: false, barPercentage: 0.85, categoryPercentage: 0.8 };
+    let html = '<div class="dh-grid">';
 
-    chart = new Chart(ctx, {
-      type: chartType,
-      data: {
-        labels,
-        datasets: [
-          {
-            label: 'Takeoffs',
-            data: d.chart.map(c => c.takeoffs),
-            borderColor: takeoffColor,
-            backgroundColor: isDay ? hexToRgba(takeoffColor, 0.08) : hexToRgba(takeoffColor, 0.75),
-            ...baseDataset,
-          },
-          {
-            label: 'Landings',
-            data: d.chart.map(c => c.landings),
-            borderColor: landingColor,
-            backgroundColor: isDay ? hexToRgba(landingColor, 0.08) : hexToRgba(landingColor, 0.75),
-            ...baseDataset,
-          },
-          {
-            label: 'Overhead',
-            data: d.chart.map(c => c.overhead),
-            borderColor: overheadColor,
-            backgroundColor: isDay ? hexToRgba(overheadColor, 0.08) : hexToRgba(overheadColor, 0.75),
-            ...baseDataset,
-          },
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              title: items => {
-                const i   = items[0].dataIndex;
-                const ts  = d.since + i * d.bucketSize;
-                if (d.period === 'day') {
-                  return new Date(ts * 1000).toLocaleTimeString('en-NZ', {
-                    timeZone: 'Pacific/Auckland', hour: 'numeric', minute: '2-digit', hour12: true
-                  });
-                }
-                return new Date(ts * 1000).toLocaleDateString('en-NZ', {
-                  timeZone: 'Pacific/Auckland', day: 'numeric', month: 'short', year: 'numeric'
-                });
-              },
-            }
-          }
-        },
-        scales: {
-          x: {
-            stacked: !isDay,
-            grid:   { display: false },
-            border: { display: false },
-            ticks:  {
-              color: '#adb3b4',
-              font: { size: 10, family: 'Manrope' },
-              maxRotation: 0,
-            }
-          },
-          y: {
-            stacked: !isDay,
-            display: false,
-          }
-        }
+    // Header: corner + 24 hour labels (show every 3rd)
+    html += '<div></div>';
+    for (let h = 0; h < 24; h++) {
+      html += `<div class="dh-hlabel">${h % 3 === 0 ? h : ''}</div>`;
+    }
+
+    // Day rows
+    for (const { label: dl, dow } of days) {
+      html += `<div class="dh-dlabel">${dl}</div>`;
+      for (let h = 0; h < 24; h++) {
+        const r     = map[dow]?.[h];
+        const total = r?.total ?? 0;
+        const bg    = hmColor(total, maxTotal);
+        const tip   = r
+          ? `<b>${dl} ${h}:00</b><br>${r.takeoffs} takeoff${r.takeoffs!==1?'s':''} &nbsp;·&nbsp; ${r.landings} landing${r.landings!==1?'s':''} &nbsp;·&nbsp; ${r.overhead} overhead`
+          : `<b>${dl} ${h}:00</b><br>no activity`;
+        html += `<div class="dh-cell" style="background:${bg}" data-tip="${esc(tip)}"></div>`;
       }
-    });
+    }
 
-    // Update chart section label
-    const chartLabels = { day: 'Transitions by Hour (NZ Time)', week: 'Transitions by Day', month: 'Transitions by Day', year: 'Transitions by Month' };
-    document.getElementById('chart-label').textContent = chartLabels[d.period] || 'Activity';
+    html += '</div>';
+    const el = document.getElementById('dh-card');
+    el.innerHTML = html;
+    attachTips(el);
+  }
+
+  function renderCalHeatmap(rows) {
+    // Build lookup: date_nz → row
+    const map = {};
+    let maxTotal = 1;
+    for (const r of rows) {
+      map[r.date_nz] = r;
+      if (r.total > maxTotal) maxTotal = r.total;
+    }
+
+    // Last 90 days in NZ time
+    const dates = [];
+    for (let i = 89; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000);
+      dates.push(d.toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' }));
+    }
+
+    // Pad start to align Monday (en-CA = YYYY-MM-DD; treat date as UTC noon to avoid DST shifts)
+    const firstDow = (new Date(dates[0] + 'T12:00:00Z').getUTCDay() + 6) % 7; // 0=Mon
+    const padded   = [...Array(firstDow).fill(null), ...dates];
+
+    const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+    let dowHtml = '<div class="cal-dow">';
+    for (const dl of dayLabels) {
+      dowHtml += `<div class="cal-dlabel">${dl}</div>`;
+    }
+    dowHtml += '</div>';
+
+    let gridHtml = '<div class="cal-grid">';
+    for (const date of padded) {
+      if (!date) {
+        gridHtml += '<div class="cal-cell" style="background:transparent"></div>';
+      } else {
+        const r     = map[date];
+        const total = r?.total ?? 0;
+        const bg    = hmColor(total, maxTotal);
+        const tipTxt = r
+          ? `<b>${date}</b><br>${r.takeoffs} takeoff${r.takeoffs!==1?'s':''} &nbsp;·&nbsp; ${r.landings} landing${r.landings!==1?'s':''} &nbsp;·&nbsp; ${r.overhead} overhead`
+          : `<b>${date}</b><br>no activity`;
+        gridHtml += `<div class="cal-cell" style="background:${bg}" data-tip="${esc(tipTxt)}"></div>`;
+      }
+    }
+    gridHtml += '</div>';
+
+    const el = document.getElementById('cal-card');
+    el.innerHTML = `<div class="cal-wrap">${dowHtml}${gridHtml}</div>`;
+    attachTips(el);
   }
 
   function renderBars(containerId, rows, nameKey, subKey) {
@@ -682,7 +733,8 @@
       const d   = await res.json();
 
       renderHero(d);
-      renderChart(d);
+      renderDHHeatmap(d.dh_heatmap, d.label);
+      renderCalHeatmap(d.cal_heatmap);
       renderBars('ops-card',   d.top_operators, 'operator');
       renderBars('types-card', d.top_types,     'aircraft_type', 'manufacturer');
       renderMostSeen(d.most_seen);
