@@ -37,7 +37,7 @@ wrangler deploy
 wrangler d1 execute flight --file=migrations/000N_name.sql --remote
 
 # Poller (on NAS, requires sudo)
-sudo docker-compose -f ~/docker/flight/docker-compose.yml up -d --build
+sudo docker-compose -f /volume1/docker/flight/docker-compose.yml up -d --build
 ```
 
 Always commit + deploy after every change. Never leave local-only.
