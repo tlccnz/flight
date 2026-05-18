@@ -285,9 +285,6 @@ async function handleIngest(request, env) {
         stateStmts.push(
           env.DB.prepare(`UPDATE aircraft SET sighting_count = sighting_count + 1 WHERE hex = ?`).bind(p.hex)
         );
-        if (inWatchlist) {
-          notifications.push({ hex: p.hex, label, callsign, event: 'landed' });
-        }
       }
 
       stateStmts.push(

@@ -37,9 +37,6 @@ async function sendNtfy(notification) {
   if (event === 'airborne') {
     title   = `✈️ ${label} is airborne`;
     message = callsign && callsign !== label ? `Callsign: ${callsign}` : ' ';
-  } else if (event === 'landed') {
-    title   = `🛬 ${label} has landed`;
-    message = callsign && callsign !== label ? `Callsign: ${callsign}` : ' ';
   } else if (event === 'notable') {
     title   = `👀 ${label} spotted`;
     message = `${detail || ''}${callsign && callsign !== label ? ` · ${callsign}` : ''}`.trim() || ' ';
