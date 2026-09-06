@@ -36,7 +36,12 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runEnrichment(env));
+    if (event.cron === '0 0 * * *') {
+      const cutoff = Math.floor(Date.now() / 1000) - 86400;
+      ctx.waitUntil(env.DB.prepare('DELETE FROM positions WHERE ts < ?').bind(cutoff).run());
+    } else {
+      ctx.waitUntil(runEnrichment(env));
+    }
   },
 };
 

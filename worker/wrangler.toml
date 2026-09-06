@@ -8,7 +8,7 @@ globs     = ["**/*.html"]
 fallthrough = true
 
 [triggers]
-crons = ["*/5 * * * *"]
+crons = ["*/5 * * * *", "0 0 * * *"]
 
 [[d1_databases]]
 binding       = "DB"
