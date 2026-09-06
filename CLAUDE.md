@@ -196,6 +196,10 @@ NTFY_URL=https://ntfy.sh/flight-alerts-f655e44d4857d71e
 | `0007_ground_streak.sql` | ground_streak on aircraft |
 | `0008_air_streak.sql` | air_streak on aircraft |
 
+## Positions purge
+
+Cron `0 0 * * *` (midnight UTC) deletes `positions` rows older than 24 hours — keeps a rolling day of raw telemetry. Branched in `scheduled()` via `event.cron`. Enrichment cron (`*/5 * * * *`) is unaffected. `aircraft`, `transitions`, and `watchlist` tables are not touched — all counters are written in-place on ingest, not derived from `positions`.
+
 ## Standing instructions
 
 - Read before writing. Read relevant files in full before any edit.
